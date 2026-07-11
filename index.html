@@ -148,7 +148,7 @@
             <tr>
               <th>날짜</th>
               <th>종가</th>
-              <th>전일대비</th>
+              <!-- <th>전일대비</th> -->
               <th>등락율(%)</th>
               <th>개인</th>
               <th>외국인</th>
@@ -2639,8 +2639,8 @@
 
           tr.innerHTML = `
                 <td>${formatDate(item.dt)}</td>
-                <td>${formatNum(item.cur_prc)}</td>
-                <td class="${getSigColorClass(item.pre_sig)}">${formatNum(item.pred_pre)}</td>
+                <td>${Math.abs(item.cur_prc)}</td>
+                <!--<td class="${getSigColorClass(item.pre_sig)}">${formatNum(item.pred_pre)}</td>-->
                 <td class="${getSigColorClass(item.pre_sig)}">${formatFluRt(item.flu_rt)}%</td>
                 <td class="${getColorClass(item.ind_invsr)}">${formatNum(item.ind_invsr)}</td>
                 <td class="${getColorClass(item.frgnr_invsr)}">${formatNum(item.frgnr_invsr)}</td>
