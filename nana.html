@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주식 박스권 돌파 및 수급 평균단가 분석기</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { padding: 20px; background-color: #f8f9fa; color: #333; max-width: 1000px; margin: 0 auto; }
+        h2 { border-bottom: 2px solid #2b6cb0; padding-bottom: 8px; color: #2b6cb0; }
+        .input-group { margin-bottom: 20px; }
+        textarea { width: 100%; height: 160px; padding: 12px; font-size: 13px; font-family: monospace; border: 1px solid #ccc; border-radius: 6px; resize: vertical; }
+        button { background-color: #2b6cb0; color: white; border: none; padding: 12px 24px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+        button:hover { background-color: #1a4971; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-top: 20px; display: none; }
+        .period-info { font-size: 16px; font-weight: bold; color: #2d3748; background: #ebf8ff; padding: 12px; border-left: 4px solid #3182ce; margin-bottom: 15px; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px 12px; text-align: right; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+        th { background-color: #edf2f7; color: #4a5568; font-weight: bold; text-align: right; }
+        th:first-child, td:first-child { text-align: left; font-weight: bold; }
+        tr:hover { background-color: #f7fafc; }
+        .buy { color: #e53e3e; font-weight: bold; }
+        .sell { color: #3182ce; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2>주식 박스권 돌파 및 수급 평균단가 분석기</h2>
+    <p>네이버 증권, 팍스넷, 엑셀 등에서 복사한 매매 동향 텍스트를 그대로 박스 안에 붙여넣으세요.</p>
+    
+    <div class="input-group">
+        <textarea id="rawData" placeholder="여기에 텍스트 데이터를 붙여넣으세요..."></textarea>
+    </div>
+    <button onclick="analyzeData()">분석 실행</button>
+
+    <div id="resultCard" class="card">
+        <div id="periodInfo" class="period-info"></div>
+        <table>
+            <thead>
+                <tr>
+                    <th>투자 주체</th>
+                    <th>누적 순매수량 (주)</th>
+                    <th>누적 순매수금액 (원)</th>
+                    <th>평균매수단가 (원)</th>
+                </tr>
+            </thead>
+            <tbody id="resultBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        function analyzeData() {
+            const rawText = document.getElementById('rawData').value.trim();
+            if (!rawText) {
+                alert('데이터를 입력해주세요.');
+                return;
+            }
+
+            // 1. 데이터 파싱 (정규표현식 활용)
+            // 날짜 패턴: YYYY-MM-DD 또는 YYYY.MM.DD
+            const rows = [];
+            const regex = /(\d{4}[-.\/]\d{2}[-.\/]\d{2})/g;
+            let match;
+            const matches = [];
+            
+            while ((match = regex.exec(rawText)) !== null) {
+                matches.push({ date: match[1], index: match.index });
+            }
+
+            if (matches.length === 0) {
+                alert('날짜 형식을 인식할 수 없습니다. (예: 2026-07-21)');
+                return;
+            }
+
+            // 수급 칼럼 목록
+            const columns = ['개인', '외국인', '기관계', '금융투자', '투신', '보험', '은행', '연기금등', '사모펀드', '기타법인'];
+
+            for (let i = 0; i < matches.length; i++) {
+                const startDate = matches[i].index;
+                const endDate = (i + 1 < matches.length) ? matches[i + 1].index : rawText.length;
+                const rowStr = rawText.substring(startDate, endDate);
+
+                // 숫자/음수/소수점/콤마 파싱
+                const tokens = rowStr.match(/[-+]?[\d,]+(\.\d+)?%?/g);
+                
+                if (tokens && tokens.length >= 13) {
+                    const date = tokens[0];
+                    const closePrice = parseFloat(tokens[1].replace(/,/g, ''));
+                    const changeRate = parseFloat(tokens[2].replace(/[%]/g, ''));
+
+                    const rowData = { 날짜: date, 종가: closePrice, 등락율: changeRate };
+                    for (let c = 0; c < columns.length; c++) {
+                        rowData[columns[c]] = parseFloat(tokens[3 + c].replace(/,/g, ''));
+                    }
+                    rows.push(rowData);
+                }
+            }
+
+            // 날짜 오름차순 정렬 (과거 -> 최근)
+            rows.sort((a, b) => a.날짜.localeCompare(b.날짜));
+
+            if (rows.length < 5) {
+                alert('분석을 위해 최소 5개 이상의 일별 데이터가 필요합니다.');
+                return;
+            }
+
+            // 2. 박스권 돌파 지점 자동 판정 (과거 20일 기준 최고 종가 돌파)
+            const boxWindow = 20;
+            let breakoutIndex = -1;
+
+            for (let i = boxWindow; i < rows.length; i++) {
+                let maxPastClose = -Infinity;
+                for (let j = i - boxWindow; j < i; j++) {
+                    if (rows[j].종가 > maxPastClose) maxPastClose = rows[j].종가;
+                }
+
+                // 박스 상단 대비 +3% 이상 상승하며 돌파한 시점 탐지
+                if (rows[i].종가 > maxPastClose * 1.03) {
+                    breakoutIndex = i;
+                }
+            }
+
+            // 돌파 지점을 못 찾은 경우 최근 10거래일로 대체
+            if (breakoutIndex === -1) {
+                breakoutIndex = Math.max(0, rows.length - 10);
+            }
+
+            const breakoutDate = rows[breakoutIndex].날짜;
+            const endDate = rows[rows.length - 1].날짜;
+            const targetRows = rows.slice(breakoutIndex);
+
+            // 3. 주체별 가중평균단가(VWAP) 및 수급 계산
+            const results = [];
+            columns.forEach(col => {
+                let totalQty = 0;
+                let totalVal = 0;
+
+                targetRows.forEach(r => {
+                    const qty = r[col] || 0;
+                    totalQty += qty;
+                    totalVal += (qty * r.종가);
+                });
+
+                const avgPrice = totalQty !== 0 ? (totalVal / totalQty) : 0;
+                results.push({
+                    name: col,
+                    qty: totalQty,
+                    val: totalVal,
+                    avg: avgPrice
+                });
+            });
+
+            // 4. 화면 출력 Render
+            document.getElementById('periodInfo').innerHTML = 
+                `📌 <strong>주요 분석 기간:</strong> ${breakoutDate} ~ ${endDate} (총 ${targetRows.length}거래일)<br>` +
+                `<small style="font-weight:normal; color:#666;">* 감지된 박스권 돌파 시작일(${breakoutDate}) 이후의 가중평균매수단가(VWAP)입니다.</small>`;
+
+            const tbody = document.getElementById('resultBody');
+            tbody.innerHTML = '';
+
+            results.forEach(res => {
+                const tr = document.createElement('tr');
+                const qtyClass = res.qty > 0 ? 'buy' : (res.qty < 0 ? 'sell' : '');
+                
+                tr.innerHTML = `
+                    <td>${res.name}</td>
+                    <td class="${qtyClass}">${res.qty.toLocaleString()} 주</td>
+                    <td>${Math.round(res.val).toLocaleString()} 원</td>
+                    <td><strong>${res.avg > 0 ? Math.round(res.avg).toLocaleString() + ' 원' : '-'}</strong></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('resultCard').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
