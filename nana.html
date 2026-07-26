@@ -43,8 +43,10 @@
             <thead>
                 <tr>
                     <th>투자 주체</th>
+                    <!--
                     <th>누적 순매수액 (원)</th>
                     <th>추정 순매수량 (주)</th>
+                    -->
                     <th>평균매수단가 (원)</th>
                 </tr>
             </thead>
@@ -181,8 +183,8 @@
 
                 tr.innerHTML = `
                     <td>${res.name}</td>
-                    <td class="${valClass}">${Math.round(res.val).toLocaleString()} 원</td>
-                    <td class="${valClass}">${Math.round(res.qty).toLocaleString()} 주</td>
+                    <!-- <td class="${valClass}">${Math.round(res.val).toLocaleString()} 원</td>
+                    <td class="${valClass}">${Math.round(res.qty).toLocaleString()} 주</td> -->
                     <td><strong>${avgDisplay}</strong></td>
                 `;
                 tbody.appendChild(tr);
